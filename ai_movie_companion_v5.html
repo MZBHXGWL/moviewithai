@@ -1,0 +1,1044 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>AI 观影伴侣 - 完整版（MCP + 在线视频）</title>
+<style>
+@import url('https://gs.jurieo.com/gemini/fonts-googleapis/css2?family=Noto+Serif+SC:wght=400;600&family=JetBrains+Mono:wght=400;500&family=Inter:wght=300;400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a24;--bg4:#22222e;
+  --border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.14);
+  --text:#e8e8f0;--text2:#9090a8;--text3:#5a5a78;
+  --accent:#7c6af7;--accent2:#a08bf5;
+  --gold:#f0c060;--teal:#4ecdc4;--danger:#f87c7c;--green:#6ee7b7;
+  --mem:#e8a87c;--mem2:rgba(232,168,124,0.15);
+  --font-main:'Inter',sans-serif;--font-serif:'Noto Serif SC',serif;--font-mono:'JetBrains Mono',monospace;
+  --r:10px;--r2:16px;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font-main);font-size:14px;min-height:100vh;overflow-x:hidden}
+.app{display:grid;grid-template-columns:1fr 360px;grid-template-rows:auto 1fr auto;height:100vh;max-height:100vh;overflow:hidden}
+
+/* header */
+.header{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:52px;border-bottom:1px solid var(--border);background:var(--bg2);z-index:10;flex-shrink:0}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--font-serif);font-weight:600;font-size:16px}
+.logo-icon{width:28px;height:28px;background:linear-gradient(135deg,var(--accent),var(--teal));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.header-controls{display:flex;align-items:center;gap:8px}
+.btn{display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--bg4);color:var(--text)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent2)}
+.btn.mem-btn{background:var(--mem2);border-color:rgba(232,168,124,.35);color:var(--mem)}
+.btn.active{background:rgba(124,106,247,.2);border-color:var(--accent);color:var(--accent2)}
+.status-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);transition:background .3s}
+.status-dot.on{background:var(--teal);box-shadow:0 0 6px var(--teal)}
+.status-dot.thinking{background:var(--gold);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* video panel */
+.video-panel{grid-column:1;grid-row:2/4;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border)}
+.video-area{position:relative;flex:1;background:#000;min-height:0;overflow:hidden}
+.video-area video{width:100%;height:100%;object-fit:contain;display:block}
+.video-area iframe{width:100%;height:100%;border:none}
+.video-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;color:var(--text3);cursor:pointer;position:absolute;inset:0}
+.video-placeholder:hover{background:rgba(255,255,255,.03)}
+canvas#snapshot-canvas{display:none}
+.subtitle-overlay{position:absolute;bottom:70px;left:50%;transform:translateX(-50%);text-align:center;font-family:var(--font-serif);font-size:16px;color:#fff;text-shadow:0 1px 8px #000, 0 0 2px #000;pointer-events:none;max-width:80%;z-index:5}
+.flash{position:absolute;inset:0;background:rgba(255,255,255,.08);pointer-events:none;opacity:0;transition:opacity .1s}
+.flash.active{opacity:1}
+.ai-badge{position:absolute;top:12px;right:12px;background:rgba(124,106,247,.25);border:1px solid rgba(124,106,247,.4);border-radius:20px;padding:4px 10px;font-size:11px;display:flex;align-items:center;gap:5px;opacity:0;transition:opacity .3s}
+.ai-badge.visible{opacity:1}
+
+/* controls */
+.controls-bar{height:64px;background:var(--bg2);border-top:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
+.ctrl-btn{width:34px;height:34px;border-radius:50%;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ctrl-btn:hover{background:var(--bg4);color:var(--text)}
+.progress-wrap{flex:1;display:flex;flex-direction:column;gap:4px}
+.progress{-webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:4px;background:var(--bg4);cursor:pointer}
+.progress::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent2);cursor:pointer}
+.time-label{font-family:var(--font-mono);font-size:11px;color:var(--text3);text-align:right}
+.volume-wrap{display:flex;align-items:center;gap:6px}
+.volume-wrap input{-webkit-appearance:none;appearance:none;width:72px;height:3px;background:var(--bg4);border-radius:3px;}
+.volume-wrap input::-webkit-slider-thumb{-webkit-appearance:none;width:10px;height:10px;border-radius:50%;background:var(--text2);}
+
+/* chat panel */
+.chat-panel{grid-column:2;grid-row:2/4;display:flex;flex-direction:column;overflow:hidden}
+.chat-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+.tab{flex:1;padding:10px 4px;font-size:11px;color:var(--text3);text-align:center;cursor:pointer;border-bottom:2px solid transparent}
+.tab.active{color:var(--accent2);border-bottom-color:var(--accent)}
+
+.tab-content{display:none !important}
+.tab-content.active{display:flex !important;flex-direction:column;flex:1;min-height:0;overflow-y:auto}
+
+/* messages */
+.messages{flex:1;overflow-y:auto;padding:16px 14px;display:flex;flex-direction:column;gap:14px}
+.messages::-webkit-scrollbar{width:4px}
+.msg{display:flex;flex-direction:column;gap:5px}
+.msg-header{display:flex;align-items:center;gap:7px}
+.avatar{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px}
+.avatar.ai{background:linear-gradient(135deg,var(--accent),var(--teal))}
+.avatar.user{background:var(--bg4);border:1px solid var(--border2)}
+.avatar.mem{background:linear-gradient(135deg,var(--mem),var(--gold))}
+.msg-name{font-size:11px;color:var(--text3)}
+.msg-ts{font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-left:auto}
+.msg-body{background:var(--bg2);border:1px solid var(--border);border-radius:0 var(--r) var(--r) var(--r);padding:10px 12px;font-size:13px;line-height:1.65}
+.msg.user .msg-body{background:rgba(124,106,247,.1);border-color:rgba(124,106,247,.25);border-radius:var(--r) 0 var(--r) var(--r);align-self:flex-end}
+.msg-tag{font-size:10px;font-family:var(--font-mono);color:var(--teal);background:rgba(78,205,196,.1);border-radius:4px;padding:2px 6px}
+
+/* chat input */
+.chat-input-area{padding:12px 14px;border-top:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+.input-row{display:flex;gap:8px;align-items:flex-end}
+.chat-input{flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:9px 12px;color:var(--text);font-size:13px;outline:none;resize:none;max-height:100px;line-height:1.5}
+.chat-input:focus{border-color:rgba(124,106,247,.5)}
+.send-btn{width:36px;height:36px;border-radius:var(--r);background:var(--accent);border:none;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.context-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.pill{font-size:10px;padding:3px 8px;border-radius:20px;border:1px solid var(--border2);background:var(--bg3);color:var(--text3);cursor:pointer}
+.pill.on{border-color:rgba(124,106,247,.4);background:rgba(124,106,247,.1);color:var(--accent2)}
+.pill .dot{width:5px;height:5px;border-radius:50%;background:currentColor;display:inline-block;margin-right:4px}
+
+/* memory panel */
+.mem-header{padding:14px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0}
+.mem-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px}
+.mem-stat{background:var(--bg3);border-radius:8px;padding:8px;text-align:center}
+.mem-stat .val{font-family:var(--font-mono);font-size:18px;font-weight:500;color:var(--mem)}
+.mem-stat .lbl{font-size:10px;color:var(--text3)}
+.mem-actions{display:flex;gap:6px}
+.mem-list{flex:1;overflow-y:auto;padding:10px}
+.mem-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px}
+.mem-card-header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;cursor:pointer}
+.mem-card-header .title{font-size:12px;font-weight:500}
+.mem-card-body{padding:0 12px 12px;display:none}
+.mem-card-body.open{display:block}
+.icon-btn{width:22px;height:22px;border-radius:5px;border:1px solid var(--border2);background:transparent;color:var(--text3);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.icon-btn.danger:hover{background:rgba(248,124,124,.1);color:var(--danger)}
+
+/* Worldbook styles */
+.wb-group { background:var(--bg3); border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; display:flex; flex-direction:column; gap:6px; }
+.wb-item-row { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,0.04); padding-bottom:6px; }
+.wb-tag { font-family:var(--font-mono); color:var(--teal); font-weight:500; font-size:12px; }
+
+/* subtitle tab */
+.sub-list{flex:1;overflow-y:auto;padding:10px}
+.sub-item{display:flex;gap:10px;padding:6px 8px;border-radius:6px;cursor:pointer}
+.sub-item:hover{background:var(--bg3)}
+.sub-item.current{background:rgba(124,106,247,.12)}
+.sub-time{font-family:var(--font-mono);font-size:10px;color:var(--text3);white-space:nowrap}
+.sub-text{font-size:12px;color:var(--text2)}
+.sub-upload{padding:16px 14px;border-top:1px solid var(--border);flex-shrink:0}
+
+/* settings tab */
+.settings-list{flex:1;overflow-y:auto;padding:14px}
+.setting-group{margin-bottom:18px}
+.setting-label{font-size:11px;color:var(--text3);margin-bottom:8px;text-transform:uppercase;letter-spacing:0.05em;}
+.setting-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.setting-name{font-size:13px;color:var(--text2)}
+.toggle{width:36px;height:20px;border-radius:20px;background:var(--bg4);position:relative;cursor:pointer;border:1px solid var(--border2)}
+.toggle::after{content:'';position:absolute;width:14px;height:14px;border-radius:50%;background:var(--text3);top:2px;left:2px;transition:all .2s}
+.toggle.on{background:rgba(124,106,247,.3);border-color:var(--accent)}
+.toggle.on::after{left:18px;background:var(--accent2)}
+.setting-select{background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:4px 8px;font-size:12px;outline:none}
+
+/* screenshots */
+.screenshots{padding:8px 14px;border-top:1px solid var(--border);display:flex;gap:6px;overflow-x:auto;flex-shrink:0}
+.snap-thumb{width:58px;height:36px;border-radius:5px;background:var(--bg3);border:1px solid var(--border);overflow:hidden;flex-shrink:0;position:relative;cursor:pointer}
+.snap-thumb img{width:100%;height:100%;object-fit:cover}
+.snap-thumb .snap-ts{position:absolute;bottom:1px;right:2px;font-size:8px;background:rgba(0,0,0,.5);padding:1px 3px;border-radius:2px}
+.snap-thumb.add{border-style:dashed;display:flex;align-items:center;justify-content:center;font-size:18px}
+
+/* info bar */
+.info-bar{display:flex;align-items:center;gap:8px;padding:6px 14px;border-top:1px solid var(--border);background:var(--bg2);font-size:11px;flex-shrink:0;color:var(--text3);font-family:var(--font-mono);}
+
+/* modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s}
+.modal-backdrop.open{opacity:1;pointer-events:all}
+.modal{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--r2);padding:24px;width:480px;max-width:90vw;max-height:80vh;overflow-y:auto}
+.modal h3{margin-bottom:12px}
+.modal input,.modal textarea{background:var(--bg3);border:1px solid var(--border2);border-radius:var(--r);padding:9px 12px;color:var(--text);width:100%;margin-bottom:12px;outline:none;}
+.modal input:focus, .modal textarea:focus { border-color:var(--accent); }
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+
+input[type=file]{display:none}
+*{scrollbar-width:thin;scrollbar-color:var(--bg4) transparent}
+</style>
+</head>
+<body>
+
+<div class="app">
+<canvas id="snapshot-canvas"></canvas>
+
+<header class="header">
+  <div class="logo"><div class="logo-icon">🎬</div>AI 观影伴侣</div>
+  <div class="header-controls">
+    <div class="btn" style="gap:8px;cursor:default;"><div class="status-dot" id="status-dot"></div><span id="status-text">未连接</span></div>
+    <button class="btn" onclick="openVideoModal()">🌐 在线视频</button>
+    <button class="btn" onclick="document.getElementById('video-file').click()">📁 本地视频</button>
+    <button class="btn mem-btn" onclick="switchTab('memory')">🧠 记忆库 <span id="mem-count-badge" style="margin-left:4px;">0</span></button>
+    <button class="btn" id="api-btn" onclick="openApiModal()">🔑 API</button>
+    <button class="btn" id="mcp-header-btn" onclick="switchTab('mcp');startMcpBridge();">📡 MCP</button>
+    <button class="btn primary" id="start-btn" onclick="toggleAI()" disabled>🤖 启动 AI</button>
+  </div>
+</header>
+
+<div class="video-panel">
+  <div class="video-area" id="video-area">
+    <div class="video-placeholder" id="placeholder">
+      <div class="upload-icon">🎬</div>
+      <p>点击「在线视频」或「本地视频」开始观影</p>
+    </div>
+    <video id="video" style="display:none;" crossorigin="anonymous"></video>
+    <div class="subtitle-overlay" id="sub-overlay"></div>
+    <div class="flash" id="flash"></div>
+    <div class="ai-badge" id="ai-badge"><div class="status-dot thinking"></div> AI 分析中</div>
+  </div>
+  <div class="screenshots" id="screenshots">
+    <div class="snap-thumb add" onclick="manualSnap()">📸</div>
+  </div>
+  <div class="controls-bar">
+    <button class="ctrl-btn" id="play-btn" onclick="togglePlay()">▶</button>
+    <button class="ctrl-btn" onclick="skipTime(-10)">⏪</button>
+    <button class="ctrl-btn" onclick="skipTime(10)">⏩</button>
+    <div class="progress-wrap">
+      <input type="range" class="progress" id="progress" min="0" max="100" value="0" step="0.1" oninput="seekTo(this.value)">
+      <div class="time-label" id="time-label">0:00 / 0:00</div>
+    </div>
+    <div class="volume-wrap">
+      <span>🔊</span>
+      <input type="range" min="0" max="1" step="0.05" value="0.8" id="vol" oninput="setVol(this.value)">
+    </div>
+    <button class="ctrl-btn active" id="sub-toggle" onclick="toggleSubtitles()">📄</button>
+  </div>
+</div>
+
+<div class="chat-panel">
+  <div class="chat-tabs">
+    <div class="tab active" data-tab="chat" onclick="switchTab('chat')">💬 对话</div>
+    <div class="tab" data-tab="persona" onclick="switchTab('persona')">🎭 主页设定</div>
+    <div class="tab" data-tab="mcp" onclick="switchTab('mcp')">📡 MCP</div>
+    <div class="tab" data-tab="memory" onclick="switchTab('memory')">🧠 记忆</div>
+    <div class="tab" data-tab="subs" onclick="switchTab('subs')">📄 字幕</div>
+    <div class="tab" data-tab="settings" onclick="switchTab('settings')">⚙️ 设置</div>
+  </div>
+
+  <div class="tab-content active" id="tab-chat">
+    <div class="messages" id="messages">
+      <div class="msg">
+        <div class="msg-header"><div class="avatar ai">AI</div><span class="msg-name" id="chat-ai-name-label">AI 伴侣</span></div>
+        <div class="msg-body">你好！我是 AI 观影伴侣 🎬<br><br>支持在线视频（YouTube/.mp4）和本地文件。配置 API 后即可开始对话！</div>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <div class="context-pills">
+        <div class="pill on" id="pill-screen" onclick="togglePill('screen')"><span class="dot"></span>画面</div>
+        <div class="pill on" id="pill-sub" onclick="togglePill('sub')"><span class="dot"></span>字幕</div>
+        <div class="pill on" id="pill-mem" onclick="togglePill('mem')"><span class="dot"></span>记忆</div>
+        <div class="pill" id="pill-time" onclick="togglePill('time')"><span class="dot"></span>时间轴</div>
+      </div>
+      <div class="input-row">
+        <textarea class="chat-input" id="chat-input" rows="1" placeholder="问 AI 关于当前剧情…" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" onclick="sendMessage()">📤</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-persona" style="padding:14px; overflow-y:auto;">
+    <div class="setting-label">🎭 AI 伴侣画像</div>
+    <input type="text" id="persona-name-input" placeholder="设定 AI 的专属名字 (例如：贾维斯、老铁)" style="background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:8px; color:var(--text); width:100%; margin-bottom:10px;" onchange="savePersonaFields()" />
+    <textarea id="persona-prompt-input" placeholder="设定系统提示词/核心人格。例如：你是一个毒舌又专业的资深影评人..." style="background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:8px; color:var(--text); width:100%; height:120px; font-size:12px; resize:vertical; outline:none; margin-bottom:14px;" onchange="savePersonaFields()"></textarea>
+
+    <div class="setting-label">📖 世界书 / 设定集 (Worldbook)</div>
+    <p style="font-size:11px; color:var(--text3); margin-bottom:8px; line-height:1.4;">当字幕中或你的提问中包含特定关键词时，对应的背景知识和世界观设定将被自动唤醒，作为秘密上下文喂给 AI。</p>
+    <div style="display:flex; gap:6px; margin-bottom:10px;">
+      <input type="text" id="wb-key-input" placeholder="触发词" style="background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:6px; color:var(--text); font-size:12px; width:35%; margin-bottom:0;" />
+      <input type="text" id="wb-value-input" placeholder="唤醒的设定内容" style="background:var(--bg3); border:1px solid var(--border2); border-radius:6px; padding:6px; color:var(--text); font-size:12px; flex:1; margin-bottom:0;" />
+      <button class="btn primary" onclick="addWorldbookEntry()" style="padding:0 12px; height:33px;">添加</button>
+    </div>
+    <div id="worldbook-container"></div>
+  </div>
+
+  <div class="tab-content" id="tab-mcp">
+    <div style="padding:14px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;">
+
+      <!-- 远程 MCP 连接说明 (新增) -->
+      <div style="background:rgba(78,205,196,.08);border:1px solid rgba(78,205,196,.25);border-radius:var(--r);padding:10px;margin-bottom:12px;">
+        <div style="font-size:11px;color:var(--teal);font-weight:500;margin-bottom:6px;">📱 安卓 Operit / 远程 MCP 客户端接入 (HTTP+SSE)</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:6px;">在 Operit 的「MCP 服务器」里添加新连接，类型选 SSE，地址填：</div>
+        <div style="font-family:monospace;font-size:12px;color:var(--accent2);background:var(--bg3);border-radius:6px;padding:6px 8px;word-break:break-all;" id="sse-url-display">http://localhost:3765/sse（启动后自动检测局域网 IP）</div>
+        <div style="display:flex;gap:6px;margin-top:8px;">
+          <button class="btn" onclick="detectAndCopySseUrl()" style="font-size:11px;padding:4px 10px;">📋 复制 SSE 地址</button>
+          <button class="btn" onclick="testSseConnection()" style="font-size:11px;padding:4px 10px;">🔍 检测连接</button>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:6px;" id="sse-test-result"></div>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
+        <span>📡 字幕实时同步</span>
+        <div class="status-dot" id="mcp-dot"></div>
+      </div>
+      <p style="font-size:11px;color:var(--text3);margin-bottom:10px;">让手机端 AI 客户端通过 MCP 协议实时获取视频状态</p>
+      <div style="background:var(--bg3);border-radius:var(--r);padding:10px;margin-bottom:10px;">
+        <div style="font-size:10px;color:var(--text3);">桥接服务器地址</div>
+        <div style="font-family:monospace;font-size:12px;color:var(--accent2);" id="mcp-bridge-url">http://localhost:3765</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:4px;">💡 字幕变化时自动推送，无需手动触发</div>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn" id="mcp-toggle-btn" onclick="toggleMcpBridge()" style="flex:1;">
+          <div class="status-dot" id="mcp-btn-dot"></div>
+          <span id="mcp-btn-text">开始同步</span>
+        </button>
+        <button class="btn" onclick="copyMcpConfig()" style="flex:1;">📋 桌面MCP配置</button>
+      </div>
+    </div>
+    <div style="padding:10px 14px;border-bottom:1px solid var(--border);">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;">
+        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:16px;color:var(--teal);" id="mcp-sync-count">0</div>
+          <div style="font-size:10px;">已同步</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:16px;color:var(--gold);" id="mcp-msg-count">0</div>
+          <div style="font-size:10px;">AI消息</div>
+        </div>
+        <div style="background:var(--bg3);border-radius:8px;padding:8px;text-align:center;">
+          <div style="font-size:16px;color:var(--accent2);" id="mcp-remote-clients">0</div>
+          <div style="font-size:10px;">远程客户端</div>
+        </div>
+      </div>
+      <div style="font-size:10px;" id="mcp-last-sync">未开始</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;padding:8px 14px;border-bottom:1px solid var(--border);">
+      <span>🤖 远程 AI 消息</span>
+      <button class="btn" onclick="clearMcpMessages()" style="padding:2px 8px;">清空</button>
+    </div>
+    <div class="messages" id="mcp-messages" style="flex:1;">
+      <div style="text-align:center;color:var(--text3);padding:30px;">等待连接...</div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-memory">
+    <div class="mem-header">
+      <div class="mem-stats">
+        <div class="mem-stat"><div class="val" id="ms-memories">0</div><div class="lbl">记忆块</div></div>
+        <div class="mem-stat"><div class="val" id="ms-turns">0</div><div class="lbl">对话轮次</div></div>
+        <div class="mem-stat"><div class="val" id="ms-progress">0%</div><div class="lbl">下次压缩</div></div>
+      </div>
+      <div class="mem-actions">
+        <button class="btn mem-btn" style="flex:1;" onclick="triggerManualCompress()">⚡ 立即压缩</button>
+        <button class="btn" style="flex:1;" onclick="exportMemory()">📥 导出</button>
+        <button class="btn" style="flex:1;" onclick="document.getElementById('mem-import-file').click()">📤 导入</button>
+      </div>
+    </div>
+    <div class="mem-list" id="mem-list">
+      <div style="text-align:center;color:var(--text3);padding:40px;">暂无记忆</div>
+    </div>
+  </div>
+
+  <div class="tab-content" id="tab-subs">
+    <div class="sub-upload">
+      <button class="btn" style="width:100%;" onclick="document.getElementById('srt-file').click()">📄 加载字幕</button>
+    </div>
+    <div class="sub-list" id="sub-list"><div style="text-align:center;padding:30px;">暂无字幕</div></div>
+  </div>
+
+  <div class="tab-content" id="tab-settings">
+    <div class="settings-list">
+      <div class="setting-group">
+        <div class="setting-label">记忆系统</div>
+        <div class="setting-row"><span class="setting-name">自动压缩</span><div class="toggle on" id="toggle-auto-mem" onclick="toggleSetting('auto-mem')"></div></div>
+        <div class="setting-row"><span class="setting-name">压缩轮数</span>
+          <select class="setting-select" id="mem-trigger-turns"><option value="5">5</option><option value="10" selected>10</option><option value="20">20</option></select>
+        </div>
+        <div class="setting-row"><span class="setting-name">注入上下文</span><div class="toggle on" id="toggle-mem-inject" onclick="toggleSetting('mem-inject')"></div></div>
+      </div>
+      <div class="setting-group">
+        <div class="setting-label">截图</div>
+        <div class="setting-row"><span class="setting-name">自动截图</span><div class="toggle on" id="toggle-auto-snap" onclick="toggleSetting('auto-snap')"></div></div>
+        <div class="setting-row"><span class="setting-name">截图间隔</span>
+          <select class="setting-select" id="snap-interval"><option value="30">30秒</option><option value="60" selected>60秒</option><option value="120">120秒</option></select>
+        </div>
+      </div>
+      <div class="setting-group">
+        <div class="setting-label">AI 行为预设 (单兵模式)</div>
+        <div class="setting-row"><span class="setting-name">主动评论</span><div class="toggle on" id="toggle-proactive" onclick="toggleSetting('proactive')"></div></div>
+        <div class="setting-row"><span class="setting-name">评论间隔</span>
+          <select class="setting-select" id="comment-interval"><option value="120">2分钟</option><option value="300" selected>5分钟</option><option value="600">10分钟</option></select>
+        </div>
+        <div class="setting-row"><span class="setting-name">观影风格</span>
+          <select class="setting-select" id="ai-persona">
+            <option value="casual">🍿 轻松闲聊</option><option value="analyst" selected>🎭 深度分析</option>
+            <option value="director">🎬 导演视角</option><option value="comedian">😄 搞笑吐槽</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="info-bar">
+  <span>⏱️ <span id="ib-time">0:00</span></span>
+  <span>|</span>
+  <span id="ib-sub">无字幕</span>
+  <span>|</span>
+  <span>🧠 <span id="ib-mem-txt">0 记忆块</span></span>
+  <span>|</span>
+  <span id="ib-status">AI 未启动</span>
+</div>
+
+<div class="modal-backdrop" id="video-modal">
+  <div class="modal">
+    <h3>🎬 在线视频</h3>
+    <p>输入视频链接（YouTube 或 .mp4/.m3u8 直链）</p>
+    <input type="text" id="video-url-input" placeholder="https://www.youtube.com/watch?v=... 或 https://example.com/video.mp4" />
+    <div style="display:flex;gap:8px;">
+      <button class="btn" onclick="parseVideoUrl()" style="flex:1;">🔍 解析并播放</button>
+      <button class="btn primary" onclick="loadDirectUrl()" style="flex:1;">📹 直接加载</button>
+    </div>
+    <div id="video-parse-status" style="font-size:11px;color:var(--text3);margin-top:8px;"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeVideoModal()">取消</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="api-modal">
+  <div class="modal">
+    <h3>🔑 API 设置</h3>
+    <p>配置 OpenAI 兼容接口（DeepSeek、OpenAI、OpenRouter 等）</p>
+    <input type="text" id="api-endpoint-input" placeholder="API 端点，如 https://api.deepseek.com/v1" />
+    <input type="password" id="api-key-input" placeholder="API 密钥" />
+    <input type="text" id="model-input" placeholder="模型名称，如 deepseek-chat" />
+    <div class="modal-footer">
+      <button class="btn" onclick="closeApiModal()">取消</button>
+      <button class="btn primary" onclick="saveApiKey()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="mem-detail-modal">
+  <div class="modal"><h3 id="mem-modal-title">记忆详情</h3><div id="mem-modal-body"></div><div class="modal-footer"><button class="btn" onclick="closeModal('mem-detail-modal')">关闭</button></div></div>
+</div>
+
+<div class="modal-backdrop" id="import-modal">
+  <div class="modal"><h3>导入记忆</h3><div id="import-preview"></div><div class="modal-footer"><button class="btn" onclick="closeModal('import-modal')">取消</button><button class="btn primary" onclick="confirmImport()">确认</button></div></div>
+</div>
+
+<input type="file" id="video-file" accept="video/*" onchange="loadVideoFile(this)">
+<input type="file" id="srt-file" accept=".srt,.ass,.vtt" onchange="loadSubtitles(this)">
+<input type="file" id="mem-import-file" accept=".json" onchange="readImportFile(this)">
+
+<script>
+// ==================== 全局状态 ====================
+const state = {
+  apiKey: '', apiEndpoint: 'https://api.deepseek.com/v1', model: 'deepseek-chat',
+  aiName: 'AI 伴侣',
+  systemPrompt: '你是一个专业的电影观看同伴，请根据当下的电影画面、时间进度和实时字幕，提供有趣深刻的互动回复。',
+  worldbook: [], // 结构为 { keyword: '', content: '' }
+  videoLoaded: false, aiRunning: false, videoIsIframe: false,
+  subtitles: [], snapshots: [], currentSubIdx: -1,
+  turns: 0, sinceLastCompress: 0, history: [], memories: [],
+  settings: {autoMem: true, memInject: true, autoSnap: true, proactive: true},
+  pills: {screen: true, sub: true, mem: true, time: false},
+  snapIntervalId: null, commentIntervalId: null, pendingImport: null,
+};
+
+// MCP 状态
+const mcpState = { running: false, syncCount: 0, msgCount: 0, syncInterval: null, bridgeUrl: 'http://localhost:3765' };
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('snapshot-canvas');
+const ctx = canvas.getContext('2d');
+
+// ==================== 辅助函数 ====================
+function fmt(s) { if (!s || isNaN(s)) return '0:00'; const m = Math.floor(s/60), sec = Math.floor(s%60); return m + ':' + String(sec).padStart(2,'0'); }
+function escHtml(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(100, el.scrollHeight) + 'px'; }
+function handleKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function switchTab(name) { ['chat','persona','mcp','memory','subs','settings'].forEach(t=>{ const el=document.querySelector(`.tab[data-tab="${t}"]`); if(el) el.classList.toggle('active',t===name); const c=document.getElementById('tab-'+t); if(c) c.classList.toggle('active',t===name); }); }
+
+// ==================== 🎭 主页设定持久化逻辑 ====================
+function savePersonaFields() {
+  state.aiName = document.getElementById('persona-name-input').value.trim() || 'AI 伴侣';
+  state.systemPrompt = document.getElementById('persona-prompt-input').value.trim();
+  document.getElementById('chat-ai-name-label').textContent = state.aiName;
+  try {
+    localStorage.setItem('movie_ai_name', state.aiName);
+    localStorage.setItem('movie_system_prompt', state.systemPrompt);
+  } catch(e){}
+}
+
+function addWorldbookEntry() {
+  const keyInput = document.getElementById('wb-key-input');
+  const valInput = document.getElementById('wb-value-input');
+  const keyword = keyInput.value.trim();
+  const content = valInput.value.trim();
+  if(!keyword || !content) return;
+  state.worldbook.push({ keyword, content });
+  keyInput.value = '';
+  valInput.value = '';
+  saveWorldbook();
+  renderWorldbookList();
+}
+
+function deleteWorldbookEntry(index) {
+  state.worldbook.splice(index, 1);
+  saveWorldbook();
+  renderWorldbookList();
+}
+
+function saveWorldbook() {
+  try { localStorage.setItem('movie_worldbook', JSON.stringify(state.worldbook)); } catch(e){}
+}
+
+function renderWorldbookList() {
+  const container = document.getElementById('worldbook-container');
+  if(!state.worldbook.length) { container.innerHTML = '<div style="text-align:center; color:var(--text3); font-size:11px; padding:10px;">暂无条目</div>'; return; }
+  container.innerHTML = state.worldbook.map((item, i) => `
+    <div class="wb-group">
+      <div class="wb-item-row">
+        <span class="wb-tag">🔑 ${escHtml(item.keyword)}</span>
+        <div class="icon-btn danger" onclick="deleteWorldbookEntry(${i})">🗑️</div>
+      </div>
+      <div style="font-size:12px; color:var(--text2); line-height:1.4;">${escHtml(item.content)}</div>
+    </div>
+  `).join('');
+}
+
+// 扫描文本和当前字幕，触发世界书背景切片
+function checkWorldbookTriggers(userText) {
+  let matched设定 = [];
+  const currentSub = document.getElementById('sub-overlay').textContent || '';
+  state.worldbook.forEach(item => {
+    if (userText.includes(item.keyword) || currentSub.includes(item.keyword)) {
+      matched设定.push(`【关联设定档案 - ${item.keyword}】：${item.content}`);
+    }
+  });
+  return matched设定.join('\n');
+}
+
+// ==================== 在线视频 ====================
+function openVideoModal() { document.getElementById('video-url-input').value = ''; document.getElementById('video-parse-status').innerHTML = ''; document.getElementById('video-modal').classList.add('open'); }
+function closeVideoModal() { document.getElementById('video-modal').classList.remove('open'); }
+
+function loadDirectUrl() {
+  const url = document.getElementById('video-url-input').value.trim();
+  if (!url) { alert('请输入链接'); return; }
+  if (url.match(/\.(mp4|m3u8|webm|mkv)(\?|$)/i)) {
+    loadVideoFromUrl(url);
+    closeVideoModal();
+  } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    const videoId = extractYouTubeId(url);
+    if (videoId) loadIframeVideo(`https://www.youtube.com/embed/${videoId}?enablejsapi=1`);
+    closeVideoModal();
+  } else {
+    alert('请使用 .mp4/.m3u8 直链或 YouTube 链接');
+  }
+}
+
+function parseVideoUrl() {
+  const url = document.getElementById('video-url-input').value.trim();
+  if (!url) return;
+  const statusDiv = document.getElementById('video-parse-status');
+  if (url.match(/\.(mp4|m3u8|webm)(\?|$)/i)) {
+    loadVideoFromUrl(url);
+    closeVideoModal();
+  } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+    const videoId = extractYouTubeId(url);
+    if (videoId) { loadIframeVideo(`https://www.youtube.com/embed/${videoId}`); closeVideoModal(); }
+    else statusDiv.innerHTML = '❌ 无法解析 YouTube 链接';
+  } else {
+    statusDiv.innerHTML = '⚠️ 暂不支持该网站，建议使用 .mp4 直链或下载后上传本地视频';
+  }
+}
+
+function extractYouTubeId(url) {
+  const patterns = [/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&?#]+)/, /youtube\.com\/embed\/([^/?]+)/];
+  for (const p of patterns) { const m = url.match(p); if (m) return m[1]; }
+  return null;
+}
+
+function loadVideoFromUrl(url) {
+  if (document.getElementById('video-area').querySelector('iframe')) {
+    document.getElementById('video-area').querySelector('iframe').remove();
+  }
+  video.src = url;
+  video.style.display = 'block';
+  document.getElementById('placeholder').style.display = 'none';
+  state.videoLoaded = true;
+  state.videoIsIframe = false;
+  document.getElementById('start-btn').disabled = false;
+  video.load();
+  video.play().catch(e => console.log('autoplay blocked'));
+  addMsg('ai', '🎬 视频已加载！正在播放中～');
+}
+
+function loadIframeVideo(url) {
+  if (video.style.display !== 'none') video.style.display = 'none';
+  const existing = document.getElementById('video-area').querySelector('iframe');
+  if (existing) existing.remove();
+  const iframe = document.createElement('iframe');
+  iframe.src = url;
+  iframe.style.width = '100%';
+  iframe.style.height = '100%';
+  iframe.style.border = 'none';
+  iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope';
+  document.getElementById('video-area').appendChild(iframe);
+  document.getElementById('placeholder').style.display = 'none';
+  state.videoLoaded = true;
+  state.videoIsIframe = true;
+  document.getElementById('start-btn').disabled = false;
+  addMsg('ai', '🎬 嵌入视频已加载（注意：嵌入视频无法进行画面分析）');
+}
+
+function loadVideoFile(input) {
+  const f = input.files[0];
+  if (!f) return;
+  if (document.getElementById('video-area').querySelector('iframe')) {
+    document.getElementById('video-area').querySelector('iframe').remove();
+  }
+  video.src = URL.createObjectURL(f);
+  video.style.display = 'block';
+  document.getElementById('placeholder').style.display = 'none';
+  state.videoLoaded = true;
+  state.videoIsIframe = false;
+  document.getElementById('start-btn').disabled = false;
+  video.load();
+  addMsg('ai', `📁 已加载本地视频：${f.name}`);
+}
+
+// ==================== 视频控制 ====================
+function togglePlay() { if (!state.videoLoaded || state.videoIsIframe) return; if (video.paused) video.play(); else video.pause(); }
+function skipTime(s) { if (!state.videoLoaded || state.videoIsIframe || !video.duration) return; video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + s)); }
+function seekTo(v) { if (!state.videoLoaded || state.videoIsIframe || !video.duration) return; video.currentTime = (v/100)*video.duration; }
+function setVol(v) { if (!state.videoIsIframe) video.volume = parseFloat(v); }
+
+video.addEventListener('play', () => { if (state.aiRunning && !state.videoIsIframe) startAutoProcessing(); });
+video.addEventListener('timeupdate', () => {
+  if (state.videoIsIframe || !video.duration) return;
+  const pct = (video.currentTime/video.duration)*100;
+  document.getElementById('progress').value = pct;
+  document.getElementById('time-label').textContent = fmt(video.currentTime)+' / '+fmt(video.duration);
+  document.getElementById('ib-time').textContent = fmt(video.currentTime);
+  updateSubtitle(video.currentTime);
+});
+
+// ==================== 字幕 ====================
+let showSubs = true;
+function toggleSubtitles() { showSubs = !showSubs; document.getElementById('sub-toggle').classList.toggle('active', showSubs); document.getElementById('sub-overlay').style.display = showSubs ? '' : 'none'; }
+function loadSubtitles(input) {
+  const f = input.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = e => { state.subtitles = parseSRT(e.target.result); renderSubList(); addMsg('ai', `✅ 已加载 ${state.subtitles.length} 条字幕`); };
+  r.readAsText(f);
+}
+function parseSRT(text) {
+  return text.trim().split(/\n\s*\n/).map(b => {
+    const lines = b.trim().split('\n'); if (lines.length<3) return null;
+    const ts = lines[1].match(/(\d+):(\d+):(\d+)[,.](\d+)\s*-->\s*(\d+):(\d+):(\d+)[,.](\d+)/);
+    if (!ts) return null;
+    return { start: +ts[1]*3600 + +ts[2]*60 + +ts[3] + +ts[4]/1000, end: +ts[5]*3600 + +ts[6]*60 + +ts[7] + +ts[8]/1000, text: lines.slice(2).join('\n').replace(/<[^>]+>/g,'').trim() };
+  }).filter(Boolean);
+}
+function updateSubtitle(t) {
+  const sub = state.subtitles.find(s => t>=s.start && t<=s.end);
+  const newText = sub ? sub.text : '';
+  document.getElementById('sub-overlay').textContent = newText;
+  document.getElementById('ib-sub').textContent = newText ? (newText.slice(0,25)+(newText.length>25?'…':'')) : '无字幕';
+  // 字幕变化时立即推送给 MCP 服务器（触发服务端推送给 Operit）
+  if (newText) onSubtitleChanged(newText);
+}
+function renderSubList() {
+  const list = document.getElementById('sub-list');
+  if (!state.subtitles.length) { list.innerHTML = '<div style="padding:30px;text-align:center;">暂无字幕</div>'; return; }
+  list.innerHTML = state.subtitles.map((s,i)=>`<div class="sub-item" onclick="if(!state.videoIsIframe){video.currentTime=${s.start};video.play()}"><span class="sub-time">${fmt(s.start)}</span><span class="sub-text">${s.text.replace(/</g,'&lt;')}</span></div>`).join('');
+}
+function getSubContext(t,n=5) {
+  const idx = state.subtitles.findIndex(s=>t>=s.start&&t<=s.end);
+  const base = idx>=0 ? idx : Math.max(0, state.subtitles.findIndex(s=>s.start>t)-1);
+  const from = Math.max(0, base-Math.floor(n/2));
+  return state.subtitles.slice(from, from+n).map(s=>`[${fmt(s.start)}] ${s.text}`).join('\n');
+}
+
+// ==================== 截图 ====================
+function captureFrame() {
+  if (state.videoIsIframe || !state.videoLoaded || video.readyState<2 || video.videoWidth===0) return null;
+  canvas.width = 640; canvas.height = 360;
+  ctx.drawImage(video, 0, 0, 640, 360);
+  return canvas.toDataURL('image/jpeg',0.65).split(',')[1];
+}
+function addSnapshot(base64, ts) {
+  const t = ts!==undefined ? ts : (video.currentTime||0);
+  state.snapshots.push({base64, ts:t});
+  const strip = document.getElementById('screenshots');
+  const thumb = document.createElement('div');
+  thumb.className = 'snap-thumb';
+  thumb.innerHTML = `<img src="data:image/jpeg;base64,${base64}"><span class="snap-ts">${fmt(t)}</span>`;
+  strip.insertBefore(thumb, strip.firstChild);
+  document.getElementById('flash').classList.add('active');
+  setTimeout(()=>document.getElementById('flash').classList.remove('active'),200);
+}
+function manualSnap() {
+  if (state.videoIsIframe) { addMsg('ai','嵌入视频无法截图，请使用本地视频或.mp4直链'); return; }
+  const data = captureFrame();
+  if (!data) { addMsg('ai','请先播放视频'); return; }
+  addSnapshot(data);
+  if(state.aiRunning) analyzeSnap(data, video.currentTime);
+}
+async function analyzeSnap(base64,t) {
+  const subCtx = getSubContext(t);
+  await callAI([{role:'user',content:buildContent(`【画面分析】${fmt(t)}\n${subCtx||''}\n请简短描述（100字内）`,base64)}], true);
+}
+
+// ==================== AI 核心 ====================
+// 检测是否为 Anthropic 原生 API（根据 endpoint 地址自动判断）
+function isAnthropicEndpoint() {
+  return (state.apiEndpoint || '').toLowerCase().includes('anthropic');
+}
+
+function buildContent(text, base64) {
+  if (!base64) return text;
+  if (isAnthropicEndpoint()) {
+    // ✅ Anthropic 原生格式
+    return [{type:'text', text:text}, {type:'image', source:{type:'base64', media_type:'image/jpeg', data: base64}}];
+  }
+  // OpenAI / DeepSeek / OpenRouter 兼容格式
+  return [{type:'text', text:text}, {type:'image_url', image_url:{url:`data:image/jpeg;base64,${base64}`}}];
+}
+async function callAI(messages, isAuto) {
+  if (!state.apiKey) { addMsg('ai','请先配置 API'); return; }
+  const badge = document.getElementById('ai-badge');
+  badge.classList.add('visible');
+  const dot = document.getElementById('status-dot');
+  dot.className = 'status-dot thinking';
+  
+  // ⭐ 动态合并主页系统提示词与名字设定
+  const persona = document.getElementById('ai-persona').value;
+  const personaText = { casual:'轻松闲聊', analyst:'专业分析', director:'导演视角', comedian:'幽默吐槽' };
+  
+  let baseSystemPrompt = state.systemPrompt || `你是AI观影伴侣，${personaText[persona]}。`;
+  const systemPrompt = `${baseSystemPrompt}\n你的名字当前被设定为：${state.aiName}。请完全沉浸于此身份中。回复简洁（150字内），用中文。`;
+  
+  try {
+    let reply = '';
+    if (isAnthropicEndpoint()) {
+      // ✅ Anthropic 原生 API（/v1/messages，x-api-key 认证）
+      let url = state.apiEndpoint.replace(/\/+$/, '');
+      if (!url.endsWith('/messages')) url += '/messages';
+      const resp = await fetch(url, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01'},
+        body:JSON.stringify({model:state.model, max_tokens:500, system:systemPrompt, messages})
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+      reply = data.content?.[0]?.text || '';
+    } else {
+      // OpenAI / DeepSeek / OpenRouter 兼容 API（/chat/completions，Bearer 认证）
+      let url = state.apiEndpoint.replace(/\/+$/, '');
+      if (!url.endsWith('/chat/completions')) url += '/chat/completions';
+      const resp = await fetch(url, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${state.apiKey}`},
+        body:JSON.stringify({model:state.model, max_tokens:500, messages:[{role:'system',content:systemPrompt}, ...messages]})
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error.message);
+      reply = data.choices?.[0]?.message?.content || '';
+    }
+    if (!isAuto) {
+      state.history.push({role:'assistant',content:reply});
+      state.sinceLastCompress++; state.turns++;
+      updateMemUI();
+      const trigger = parseInt(document.getElementById('mem-trigger-turns').value)||10;
+      if (state.settings.autoMem && state.sinceLastCompress >= trigger) await compressMemory();
+    }
+    addMsg('ai', reply);
+  } catch(e) { addMsg('ai', `❌ ${e.message}`); }
+  badge.classList.remove('visible');
+  dot.className = state.aiRunning ? 'status-dot on' : 'status-dot';
+}
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!state.apiKey) { openApiModal(); return; }
+  input.value = ''; autoResize(input);
+  addMsg('user', text);
+  const t = video.currentTime || 0;
+  const contextParts = [];
+  if (state.pills.time) contextParts.push(`当前时间轴：${fmt(t)}`);
+  if (state.pills.sub && state.subtitles.length) { const sc = getSubContext(t); if(sc) contextParts.push(`当前实时字幕：\n${sc}`); }
+  
+  // ⭐ 检查并暗中激活世界书规则
+  const triggeredLore = checkWorldbookTriggers(text);
+  if (triggeredLore) contextParts.push(`[世界书背景知识唤醒]\n${triggeredLore}`);
+
+  // ⭐ 注入长期压缩记忆
+  if (state.pills.mem && state.memories.length && state.settings.memInject) {
+    contextParts.push(`[此前积累的长效剧情线索群]：\n` + state.memories.slice(-2).map(m=>`· ${m.plotSummary}`).join('\n'));
+  }
+
+  const snap = (state.pills.screen && !state.videoIsIframe && state.videoLoaded && video.readyState>=2) ? captureFrame() : null;
+  if (snap) addSnapshot(snap, t);
+  const contextStr = contextParts.length ? `[当前观影客观态势]\n${contextParts.join('\n\n')}\n\n` : '';
+  state.history.push({role:'user', content:buildContent(contextStr+text, snap)});
+  await callAI(state.history, false);
+}
+function addMsg(role, text) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'msg' + (role==='user'?' user':'');
+  const ts = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+  if (role==='user') {
+    div.innerHTML = `<div class="msg-header" style="flex-direction:row-reverse;"><div class="avatar user">👤</div><span class="msg-name">你</span><span class="msg-ts">${ts}</span></div><div class="msg-body">${escHtml(text).replace(/\n/g,'<br>')}</div>`;
+  } else {
+    const displayName = role === 'mem' ? '🧠 记忆归档' : state.aiName;
+    const timeTag = (!state.videoIsIframe && video.currentTime>0) ? `<span class="msg-tag">🎬 ${fmt(video.currentTime)}</span>` : '';
+    div.innerHTML = `<div class="msg-header"><div class="avatar ai">${role==='mem'?'🧠':'AI'}</div><span class="msg-name">${displayName}</span>${timeTag}<span class="msg-ts">${ts}</span></div><div class="msg-body">${escHtml(text).replace(/\n/g,'<br>')}</div>`;
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  if (role !== 'mem') switchTab('chat');
+}
+
+// ==================== 记忆系统 ====================
+function updateMemUI() {
+  const trigger = parseInt(document.getElementById('mem-trigger-turns').value)||10;
+  const pct = Math.min(100, Math.round((state.sinceLastCompress/trigger)*100));
+  document.getElementById('ms-progress').textContent = pct+'%';
+  document.getElementById('ms-memories').textContent = state.memories.length;
+  document.getElementById('ms-turns').textContent = state.turns;
+  document.getElementById('mem-count-badge').textContent = state.memories.length;
+  document.getElementById('ib-mem-txt').textContent = state.memories.length+' 记忆块';
+}
+async function compressMemory() {
+  if (state.history.length<2) return;
+  const t = video.currentTime||0;
+  const dialogDump = state.history.slice(-10).map(m=>{const role=m.role==='user'?'观众':'AI'; const c=typeof m.content==='string'?m.content:(m.content.filter?.(c=>c.type==='text').map(c=>c.text).join(' ')||''); return `${role}: ${c.slice(0,200)}`;}).join('\n');
+  const prompt = `你是一个电影观看助手的记忆压缩器。请压缩以下对话为纯JSON字符串（不要包含 markdown 代码块包裹）：{"plotSummary":"剧情摘要","characters":["角色"],"timeRange":"${fmt(t)}","mood":"情绪"}\n对话：${dialogDump}`;
+  try {
+    let raw = '';
+    if (isAnthropicEndpoint()) {
+      // ✅ Anthropic 原生 API
+      let url = state.apiEndpoint.replace(/\/+$/, '');
+      if (!url.endsWith('/messages')) url += '/messages';
+      const resp = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json','x-api-key':state.apiKey,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:state.model, max_tokens:300, messages:[{role:'user',content:prompt}]})});
+      const data = await resp.json();
+      raw = data.content?.[0]?.text || '';
+    } else {
+      // OpenAI 兼容 API
+      let url = state.apiEndpoint.replace(/\/+$/, '');
+      if (!url.endsWith('/chat/completions')) url += '/chat/completions';
+      const resp = await fetch(url, {method:'POST',headers:{'Content-Type':'application/json','Authorization':`Bearer ${state.apiKey}`},body:JSON.stringify({model:state.model, max_tokens:300, messages:[{role:'user',content:prompt}]})});
+      const data = await resp.json();
+      raw = data.choices?.[0]?.message?.content || '';
+    }
+    const clean = raw.replace(/```json|```/g,'').trim();
+    const mem = JSON.parse(clean);
+    mem.id = 'mem_'+Date.now(); mem.createdAt = new Date().toLocaleString(); mem.turnCount = state.sinceLastCompress;
+    state.memories.push(mem);
+    const maxKeep = parseInt(document.getElementById('mem-keep')?.value)||5;
+    if (state.memories.length > maxKeep) state.memories = state.memories.slice(-maxKeep);
+    state.sinceLastCompress = 0;
+    renderMemList();
+    updateMemUI();
+    addMsg('mem', `✅ 剧情线索已压缩打包：${mem.plotSummary}`);
+  } catch(e) { console.error(e); }
+}
+function renderMemList() {
+  const list = document.getElementById('mem-list');
+  if (!state.memories.length) { list.innerHTML = '<div style="padding:40px;text-align:center;">暂无记忆</div>'; return; }
+  list.innerHTML = state.memories.map((m,i)=>`<div class="mem-card"><div class="mem-card-header" onclick="toggleMemCard('${m.id}')"><div class="title">记忆块 ${i+1} · ${m.timeRange}</div><div><div class="icon-btn" onclick="event.stopPropagation();showMemDetail(${i})">👁️</div><div class="icon-btn danger" onclick="event.stopPropagation();deleteMemory(${i})">🗑️</div></div></div><div class="mem-card-body" id="mcb-${m.id}"><p>${m.plotSummary}</p><div style="font-size:10px;color:var(--text3);margin-top:8px;">${m.createdAt}</div></div></div>`).join('');
+}
+function toggleMemCard(id) { const b = document.getElementById('mcb-'+id); if(b) b.classList.toggle('open'); }
+function showMemDetail(i) { const m=state.memories[i]; document.getElementById('mem-modal-body').innerHTML=`<p><strong>剧情摘要</strong><br>${m.plotSummary}</p><p><strong>出场角色</strong><br>${m.characters?.join(', ')||'无'}</p><p><strong>基调情绪</strong><br>${m.mood||'无'}</p>`; document.getElementById('mem-detail-modal').classList.add('open'); }
+function deleteMemory(i) { state.memories.splice(i,1); renderMemList(); updateMemUI(); }
+function exportMemory() { const blob=new Blob([JSON.stringify({memories:state.memories,totalTurns:state.turns},null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='movie_memory_'+Date.now()+'.json'; a.click(); }
+function readImportFile(input) { const f=input.files[0]; if(!f)return; const r=new FileReader(); r.onload=e=>{ try{ state.pendingImport=JSON.parse(e.target.result); document.getElementById('import-preview').innerHTML=`找到 ${state.pendingImport.memories?.length||0} 个长效记忆块`; document.getElementById('import-modal').classList.add('open'); }catch(err){alert('导入失败');} }; r.readAsText(f); }
+function confirmImport() { if(state.pendingImport?.memories){ state.memories.push(...state.pendingImport.memories); renderMemList(); updateMemUI(); addMsg('mem', `📥 记忆成功注入！AI已习得过往观影记忆。`);} closeModal('import-modal'); }
+
+// ==================== 自动处理 ====================
+function startAutoProcessing() {
+  stopAutoProcessing();
+  const interval = parseInt(document.getElementById('snap-interval').value)*1000;
+  state.snapIntervalId = setInterval(()=>{ if(!video.paused && state.aiRunning && !state.videoIsIframe && video.readyState>=2){ const d=captureFrame(); if(d){ addSnapshot(d); analyzeSnap(d, video.currentTime); } } }, interval);
+  if(state.settings.proactive){
+    const ci=parseInt(document.getElementById('comment-interval').value)*1000;
+    state.commentIntervalId=setInterval(()=>{ if(!video.paused && state.aiRunning && !state.videoIsIframe) proactiveComment(); }, ci);
+  }
+}
+function stopAutoProcessing() { if(state.snapIntervalId) clearInterval(state.snapIntervalId); if(state.commentIntervalId) clearInterval(state.commentIntervalId); }
+async function proactiveComment() {
+  const t=video.currentTime; const subCtx=getSubContext(t,6); const snap=captureFrame();
+  await callAI([{role:'user',content:buildContent(`【现场主动锐评】视频位置: ${fmt(t)}\n${subCtx||''}\n请给出一句简短犀利的现场影评（50字内）`,snap)}], true);
+}
+function toggleAI() {
+  if(!state.apiKey){ openApiModal(); return; }
+  state.aiRunning = !state.aiRunning;
+  const btn=document.getElementById('start-btn'), dot=document.getElementById('status-dot'), st=document.getElementById('status-text'), ib=document.getElementById('ib-status');
+  if(state.aiRunning){
+    btn.innerHTML='⏹️ 停止 AI'; dot.className='status-dot on'; st.textContent='AI 运行中'; ib.textContent='AI 已启动'; ib.style.color='var(--teal)';
+    addMsg('ai', `✅ AI 观影系统已开机！已加载 ${state.memories.length} 段长效记忆库。`);
+    if(!video.paused && !state.videoIsIframe) startAutoProcessing();
+  } else {
+    btn.innerHTML='🤖 启动 AI'; dot.className='status-dot'; st.textContent='已暂停'; ib.textContent='AI 已停止'; ib.style.color='var(--text3)';
+    stopAutoProcessing();
+  }
+}
+
+// ==================== API 设置 ====================
+function openApiModal() { document.getElementById('api-endpoint-input').value=state.apiEndpoint; document.getElementById('api-key-input').value=state.apiKey; document.getElementById('model-input').value=state.model; document.getElementById('api-modal').classList.add('open'); }
+function closeApiModal() { document.getElementById('api-modal').remove('open'); }
+function saveApiKey() {
+  const ep=document.getElementById('api-endpoint-input').value.trim(), k=document.getElementById('api-key-input').value.trim(), m=document.getElementById('model-input').value.trim();
+  if(!ep||!k||!m){ alert('请完整填写'); return; }
+  state.apiEndpoint=ep; state.apiKey=k; state.model=m;
+  closeApiModal();
+  try{ localStorage.setItem('movie_api_endpoint',ep); localStorage.setItem('movie_api_key',k); localStorage.setItem('movie_api_model',m); }catch(e){}
+  document.getElementById('status-dot').className='status-dot on';
+  document.getElementById('status-text').textContent='API 已配置';
+}
+function toggleSetting(name) { const el=document.getElementById('toggle-'+name); el.classList.toggle('on'); if(name==='auto-mem') state.settings.autoMem=el.classList.contains('on'); if(name==='mem-inject') state.settings.memInject=el.classList.contains('on'); if(name==='auto-snap') state.settings.autoSnap=el.classList.contains('on'); if(name==='proactive') state.settings.proactive=el.classList.contains('on'); }
+function togglePill(name) { state.pills[name]=!state.pills[name]; document.getElementById('pill-'+name).classList.toggle('on',state.pills[name]); }
+
+// ==================== MCP 跨端桥接 ====================
+function toggleMcpBridge() { if(mcpState.running) stopMcpBridge(); else startMcpBridge(); }
+function startMcpBridge() {
+  mcpState.running=true;
+  document.getElementById('mcp-toggle-btn').classList.add('active');
+  document.getElementById('mcp-btn-dot').style.background='var(--teal)';
+  document.getElementById('mcp-btn-text').textContent='停止同步';
+  // 主状态同步每2秒一次
+  mcpState.syncInterval = setInterval(syncToMcp, 2000);
+  syncToMcp();
+}
+function stopMcpBridge() {
+  mcpState.running=false;
+  if(mcpState.syncInterval) clearInterval(mcpState.syncInterval);
+  document.getElementById('mcp-toggle-btn').classList.remove('active');
+  document.getElementById('mcp-btn-dot').style.background='';
+  document.getElementById('mcp-btn-text').textContent='开始同步';
+  document.getElementById('mcp-dot').className='status-dot';
+}
+
+// 字幕独立推送：字幕变化时立即推送（不等2秒循环）
+let mcpLastPushedSub = '';
+function onSubtitleChanged(newSub) {
+  if (!mcpState.running || !newSub || newSub === mcpLastPushedSub) return;
+  mcpLastPushedSub = newSub;
+  // 只推字幕变化，轻量请求
+  const snap = (!state.videoIsIframe && state.videoLoaded) ? captureFrame() : null;
+  const payload = {
+    videoFile: document.getElementById('info-video')?.textContent || '在线视频',
+    currentTime: video.currentTime||0, duration: video.duration||0, isPaused: video.paused,
+    currentSubtitle: newSub,
+    recentSubtitles: (()=>{ const idx=state.subtitles.findIndex(s=>video.currentTime>=s.start&&video.currentTime<=s.end); const base=idx>=0?idx:Math.max(0,state.subtitles.findIndex(s=>s.start>video.currentTime)-1); return state.subtitles.slice(Math.max(0,base-3),base+5).map(s=>({time:fmt(s.start),text:s.text})); })(),
+    screenshot: snap, screenshotTime: video.currentTime||0,
+    _subtitleChanged: true  // 标记这是字幕变化触发的推送
+  };
+  fetch(mcpState.bridgeUrl+'/state', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload), signal:AbortSignal.timeout(2000)})
+    .then(r=>r.json()).then(data=>{
+      if(data.pendingMessages) data.pendingMessages.forEach(msg=>{ if(msg.role==='mcp-ai'){ mcpState.msgCount++; document.getElementById('mcp-msg-count').textContent=mcpState.msgCount; addMcpMessage(msg); addMsg('ai',`[📱手机AI] ${msg.text}`); } });
+    }).catch(()=>{});
+}
+
+async function syncToMcp() {
+  if(!mcpState.running) return;
+  const snap = (!state.videoIsIframe && state.videoLoaded) ? captureFrame() : null;
+  const payload = {
+    videoFile: document.getElementById('info-video')?.textContent || '在线视频',
+    currentTime: video.currentTime||0, duration: video.duration||0, isPaused: video.paused,
+    currentSubtitle: document.getElementById('sub-overlay').textContent||'',
+    recentSubtitles: (()=>{ const idx=state.subtitles.findIndex(s=>video.currentTime>=s.start&&video.currentTime<=s.end); const base=idx>=0?idx:Math.max(0,state.subtitles.findIndex(s=>s.start>video.currentTime)-1); return state.subtitles.slice(Math.max(0,base-3),base+4).map(s=>({time:fmt(s.start),text:s.text})); })(),
+    screenshot: snap, screenshotTime: video.currentTime||0,
+    aiName: state.aiName,
+    activeLore: checkWorldbookTriggers(''),
+    longTermMemories: state.memories.slice(-2).map(m=>m.plotSummary).join('\n')
+  };
+  try {
+    const resp = await fetch(mcpState.bridgeUrl+'/state', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload), signal:AbortSignal.timeout(3000)});
+    if(!resp.ok) throw new Error();
+    const data = await resp.json();
+    if(data.pendingMessages) data.pendingMessages.forEach(msg=>{ if(msg.role==='mcp-ai'){ mcpState.msgCount++; document.getElementById('mcp-msg-count').textContent=mcpState.msgCount; addMcpMessage(msg); addMsg('ai',`[📱手机AI] ${msg.text}`); } });
+    // 更新远程客户端计数
+    if(data.mcpClients !== undefined) document.getElementById('mcp-remote-clients').textContent = data.mcpClients || 0;
+    mcpState.syncCount++; document.getElementById('mcp-sync-count').textContent=mcpState.syncCount;
+    document.getElementById('mcp-dot').className='status-dot on';
+    document.getElementById('mcp-last-sync').textContent='最后同步：'+new Date().toLocaleTimeString();
+  } catch(e) { document.getElementById('mcp-dot').className='status-dot'; document.getElementById('mcp-last-sync').textContent='同步失败，请确认服务器已启动'; }
+}
+function addMcpMessage(msg) {
+  const container = document.getElementById('mcp-messages');
+  const empty = container.querySelector('div[style*="padding:30px"]');
+  if(empty) empty.remove();
+  const div = document.createElement('div'); div.className='msg';
+  div.innerHTML = `<div class="msg-header"><div class="avatar ai">📱</div><span class="msg-name">跨端 AI</span><span class="msg-ts">${new Date(msg.timestamp).toLocaleTimeString()}</span></div><div class="msg-body">${escHtml(msg.text).replace(/\n/g,'<br>')}</div>`;
+  container.appendChild(div); container.scrollTop=container.scrollHeight;
+}
+function clearMcpMessages() { document.getElementById('mcp-messages').innerHTML='<div style="text-align:center;color:var(--text3);padding:30px;">等待连接...</div>'; }
+function copyMcpConfig() {
+  const scriptPath = prompt('请输入 movie-mcp-server.js 的完整路径：', '/path/to/movie-mcp-server.js');
+  if(!scriptPath) return;
+  const config = {"mcpServers":{"movie-companion":{"command":"node","args":[scriptPath],"description":"AI观影伴侣"}}};
+  navigator.clipboard.writeText(JSON.stringify(config,null,2)).then(()=>addMsg('ai','✅ 桌面MCP配置已复制'));
+}
+
+// ── SSE 地址检测与复制（新增）──
+async function detectAndCopySseUrl() {
+  try {
+    const resp = await fetch(mcpState.bridgeUrl+'/ping', {signal:AbortSignal.timeout(2000)});
+    const data = await resp.json();
+    // 从当前请求的地址推断局域网 IP
+    const url = new URL(mcpState.bridgeUrl);
+    const sseUrl = `${url.protocol}//${url.host}/sse`;
+    navigator.clipboard.writeText(sseUrl).then(()=>{
+      document.getElementById('sse-test-result').textContent = `✅ 已复制：${sseUrl}`;
+      document.getElementById('sse-url-display').textContent = sseUrl;
+    });
+  } catch(e) {
+    document.getElementById('sse-test-result').textContent = '❌ 无法连接服务器，请先启动 movie-mcp-server.js';
+  }
+}
+async function testSseConnection() {
+  const resultEl = document.getElementById('sse-test-result');
+  resultEl.textContent = '🔍 检测中...';
+  try {
+    const resp = await fetch(mcpState.bridgeUrl+'/ping', {signal:AbortSignal.timeout(3000)});
+    const data = await resp.json();
+    resultEl.textContent = `✅ 服务器在线！视频：${data.video||'未加载'} | 远程客户端：${data.mcpClients||0}`;
+    if(data.mcpClients !== undefined) document.getElementById('mcp-remote-clients').textContent = data.mcpClients;
+  } catch(e) {
+    resultEl.textContent = '❌ 无法连接，请确认 Node.js 服务已在同一台电脑启动';
+  }
+}
+
+// ==================== 初始化与本地持久化回填 ====================
+try{
+  const savedEp = localStorage.getItem('movie_api_endpoint');
+  const savedKey = localStorage.getItem('movie_api_key');
+  const savedModel = localStorage.getItem('movie_api_model');
+  if(savedEp) state.apiEndpoint = savedEp;
+  if(savedKey) state.apiKey = savedKey;
+  if(savedModel) state.model = savedModel;
+  if(savedKey) document.getElementById('status-text').textContent = 'API 已就绪';
+  
+  // ⭐ 🎭 回填角色名称、提示词、世界书缓存
+  const savedName = localStorage.getItem('movie_ai_name');
+  const savedPrompt = localStorage.getItem('movie_system_prompt');
+  const savedWb = localStorage.getItem('movie_worldbook');
+  
+  if(savedName) { state.aiName = savedName; document.getElementById('persona-name-input').value = savedName; document.getElementById('chat-ai-name-label').textContent = savedName; }
+  if(savedPrompt) { state.systemPrompt = savedPrompt; document.getElementById('persona-prompt-input').value = savedPrompt; }
+  if(savedWb) { state.worldbook = JSON.parse(savedWb); }
+}catch(e){}
+
+updateMemUI();
+renderWorldbookList();
+
+// 模态框关闭
+['api-modal','mem-detail-modal','import-modal','video-modal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(e){ if(e.target===this) closeModal(id); });
+});
+</script>
+</body>
+</html>
